@@ -5,18 +5,18 @@ After these steps, sui-sec-bench keeps its cases, results, Move prompts, the
 sec-bench-core. Results files keep every existing field and gain `core_version`
 and `chain`. Existing results files grade unchanged, so no rerun is needed.
 
-sui-sec-bench is not a git repository yet. Run `git init` and commit (or make a
-copy) before step 1. sec-bench-core is its own repository
-(github.com/Quincy-Labs/sec-bench-core). If your local clone sits inside the
-sui-sec-bench folder, move it to a sibling folder, or add `sec-bench-core/` to
-sui-sec-bench's `.gitignore`.
+Do these steps on a branch of the sui-sec-bench repo
+(github.com/Quincy-Labs/sui-sec-bench, cloned locally as `sui-sec-bench-public`).
+Its `harness/` is byte-identical to the code sec-bench-core was extracted from.
+sec-bench-core is its own repository (github.com/Quincy-Labs/sec-bench-core).
 
 ## 1. Add the dependency
 
 Pin a tag, so every results file's `core_version` maps to exact grading code:
 
 ```sh
-cd sui-sec-bench
+cd sui-sec-bench-public
+git switch -c use-sec-bench-core
 uv add "sec-bench-core @ git+https://github.com/Quincy-Labs/sec-bench-core@v0.1.0"
 ```
 
@@ -174,7 +174,7 @@ Keep these files, with the import changes shown:
 |---|---|
 | `harness/regrade_v2.py` | Change the imports to `from sec_bench_core.cases import Case, load_cases`, `from sec_bench_core.patching import write_package_with_sources`, `from sec_bench_core.jsonparse import parse_json`. Replace `run_move_tests(...)` with `SuiChain().run_tests(...)`. Optionally move it to `scripts/` |
 | `leaderboard/build.py` | No change needed (it only reads JSON). Optionally import `table`, `passes`, `frac` and `avg_tokens` from `sec_bench_core.leaderboard` |
-| `scripts/new_case.py`, `package_release.py` | Update the printed commands and the `harness` file list |
+| `scripts/new_case.py` | Update the printed commands (lines 66–67) |
 
 ## 5. Update the commands
 
@@ -186,10 +186,9 @@ Keep these files, with the import changes shown:
 | `uv run python scripts/leak_check.py --all` | `uv run sec-bench leak-check --all` |
 | `uv run python leaderboard/build.py` (pilot report) | unchanged. `uv run sec-bench leaderboard` adds general tables |
 
-Update these: `.github/workflows/ci.yml` (lines 28–40), `scripts/run_pilot.sh`,
-`rerun_scaffold_exploit.sh`, `README.md` (lines 17, 43–65), `SCHEMA.md:44` and
-`docs/TAXONOMY.md:3`. Leave the dated reports in `docs/` as they are: they describe
-the code as it was then.
+Update these: `scripts/run_pilot.sh` (lines 23–31), `CONTRIBUTING.md` (lines 24–25)
+and the folder layout in `README.md`. Leave `PUBLIC_RELEASE_AUDIT.md` and the
+dated reports in `docs/` as they are: they describe the code as it was then.
 
 ## 6. Verify
 
@@ -201,8 +200,11 @@ for f in results/run2/*.json; do uv run sec-bench grade "$f" --out "/tmp/regrade
 
 Then compare each `outputs[i].grade` and `summary` in `/tmp/regrade` with the
 original file. Ignore the new `summary.core_version`/`summary.chain` and the
-`incomplete` key, which the current `grade.py` also adds. All of these were
-checked before release:
+`incomplete` key, which the current `grade.py` also adds. Detect and exploit
+grades should match exactly. Patch grades will **not** match in this repo: the
+exploit tests are withheld, so patches grade as `incomplete`. Compare patch
+grades only in a working copy that has the exploit tests. These checks were
+run against such a copy:
 
 - identical system/user messages and `prompt_sha256` for every task and case
 - all 84 detect outputs in 20 results files, grades and summaries
