@@ -47,6 +47,10 @@ class Chain(Protocol):
 
     answer_format replaces everything from the "## Answer format" marker in a
     case's prompt.md. Both strings may contain {classes}.
+
+    Optional: prompts["exploit"]["agentic_retry"], the message sent in --agentic
+    mode when the model's answer had no usable test. It is a str.format template
+    with {why}; write literal braces as {{ and }}.
     """
 
     exploit_filename: str
