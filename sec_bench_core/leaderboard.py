@@ -1,0 +1,132 @@
+"""Build a leaderboard from graded results files.
+
+Every graded results file (one with a "summary", written by `sec-bench grade`)
+becomes one row: model, task, strict and lenient best@k and mean, the
+incident/audit/clean splits, false-positive rate and token use. Output is
+leaderboard.json plus a Markdown table.
+
+The small helpers (passes, frac, table, avg_tokens, at_limit) are public so a
+chain repo can build its own custom report on top of them.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from . import __version__
+
+
+def passes(outs: list[dict], key: str = "correct") -> int:
+    return sum(bool((o.get("grade") or {}).get(key)) for o in outs)
+
+
+def frac(outs: list[dict], key: str = "correct") -> str:
+    return f"{passes(outs, key)}/{len(outs)}"
+
+
+def table(headers: list[str], rows: list[list]) -> str:
+    lines = ["| " + " | ".join(headers) + " |", "| " + " | ".join("---" for _ in headers) + " |"]
+    lines += ["| " + " | ".join(str(c) for c in row) + " |" for row in rows]
+    return "\n".join(lines)
+
+
+def avg_tokens(run: dict) -> int:
+    outs = run["outputs"]
+    return round(sum(o.get("completion_tokens") or 0 for o in outs) / len(outs)) if outs else 0
+
+
+def at_limit(outs: list[dict], limit: int) -> int:
+    """Outputs that used (nearly) the whole completion budget, so were likely cut off."""
+    return sum(1 for o in outs if (o.get("completion_tokens") or 0) >= limit - 1)
+
+
+def _pct(x: float | None) -> str:
+    return "-" if x is None else f"{100 * x:.0f}%"
+
+
+def load_graded(paths: list[Path]) -> list[tuple[Path, dict]]:
+    runs = []
+    for p in sorted(paths):
+        try:
+            run = json.loads(p.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(run, dict) or "outputs" not in run:
+            continue
+        if "summary" not in run:
+            print(f"skip {p}: not graded (run `sec-bench grade {p}` first)")
+            continue
+        runs.append((p, run))
+    return runs
+
+
+def row(path: Path, run: dict, root: Path) -> dict:
+    s = run["summary"]
+    limit = run.get("max_tokens")
+    return {
+        "file": str(path.relative_to(root)) if path.is_relative_to(root) else str(path),
+        "run_id": run.get("run_id"),
+        "chain": run.get("chain") or s.get("chain"),
+        "model": run["model"],
+        "task": run["task"],
+        "agentic": bool(run.get("agentic")),
+        "cases": s["cases"],
+        "samples": s["samples_total"],
+        "strict": s["strict"],
+        "lenient": s["lenient"],
+        "splits": {k: v["strict"] for k, v in s["splits"].items()},
+        "false_positive_rate": s.get("false_positive_rate"),
+        "avg_completion_tokens": avg_tokens(run),
+        "at_token_limit": at_limit(run["outputs"], limit) if limit else None,
+        "graded_by_core": s.get("core_version"),
+    }
+
+
+def build(results_dir: Path, out_dir: Path, recursive: bool = False) -> dict:
+    results_dir = Path(results_dir)
+    files = results_dir.rglob("*.json") if recursive else results_dir.glob("*.json")
+    rows = [row(p, run, results_dir) for p, run in load_graded(list(files))]
+    rows.sort(key=lambda r: (r["task"], r["model"], r["file"]))
+    data = {"core_version": __version__, "chains": sorted({r["chain"] or "?" for r in rows}), "rows": rows}
+
+    sections = []
+    for task in sorted({r["task"] for r in rows}):
+        task_rows = [r for r in rows if r["task"] == task]
+        headers = ["Model", "Mode", "Cases", "Samples", "Strict best@k", "Strict mean"]
+        if task == "detect":
+            headers += ["Lenient best@k", "Lenient mean"]
+        headers += ["Incident", "Audit", "Clean"]
+        if task == "detect":
+            headers += ["FP rate"]
+        headers += ["Avg tokens", "At limit", "File"]
+        body = []
+        for r in task_rows:
+            cells = [
+                r["model"],
+                "agentic" if r["agentic"] else "single-shot",
+                r["cases"],
+                r["samples"],
+                _pct(r["strict"]["best_at_k"]),
+                _pct(r["strict"]["mean"]),
+            ]
+            if task == "detect":
+                cells += [_pct(r["lenient"]["best_at_k"]), _pct(r["lenient"]["mean"])]
+            cells += [_pct(r["splits"][k]["best_at_k"]) for k in ("incident", "audit", "clean")]
+            if task == "detect":
+                cells += [_pct(r["false_positive_rate"])]
+            at = r["at_token_limit"]
+            cells += [r["avg_completion_tokens"], "-" if at is None else at, f"`{r['file']}`"]
+            body.append(cells)
+        sections.append(f"## {task}\n\n" + table(headers, body))
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "leaderboard.json").write_text(json.dumps(data, indent=2) + "\n")
+    chains = ", ".join(data["chains"]) or "none"
+    md = (
+        f"# Leaderboard\n\nGenerated by sec-bench-core {__version__} from `{results_dir}` "
+        f"(chain: {chains}). Split columns show strict best@k.\n\n" + "\n\n".join(sections) + "\n"
+    )
+    (out_dir / "README.md").write_text(md)
+    return data
