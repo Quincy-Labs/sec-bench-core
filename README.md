@@ -25,7 +25,7 @@ The core never builds code or runs tests itself; it always asks the Chain.
 ## Install
 
 ```sh
-uv add "sec-bench-core @ git+https://github.com/<org>/sec-bench-core"   # or a path: ../sec-bench-core
+uv add "sec-bench-core @ git+https://github.com/Quincy-Labs/sec-bench-core@v0.1.0"   # or: uv add --editable ../sec-bench-core
 ```
 
 Python 3.11+.

@@ -6,15 +6,22 @@ sec-bench-core. Results files keep every existing field and gain `core_version`
 and `chain`. Existing results files grade unchanged, so no rerun is needed.
 
 sui-sec-bench is not a git repository yet. Run `git init` and commit (or make a
-copy) before step 1. Also move `sec-bench-core/` out of the sui-sec-bench folder
-so it isn't nested inside it.
+copy) before step 1. sec-bench-core is its own repository
+(github.com/Quincy-Labs/sec-bench-core). If your local clone sits inside the
+sui-sec-bench folder, move it to a sibling folder, or add `sec-bench-core/` to
+sui-sec-bench's `.gitignore`.
 
 ## 1. Add the dependency
 
+Pin a tag, so every results file's `core_version` maps to exact grading code:
+
 ```sh
 cd sui-sec-bench
-uv add --editable ../sec-bench-core      # or: uv add "sec-bench-core @ git+https://..."
+uv add "sec-bench-core @ git+https://github.com/Quincy-Labs/sec-bench-core@v0.1.0"
 ```
+
+To work on both repos at once, use `uv add --editable ../sec-bench-core` instead,
+then switch back to the pinned tag before a release.
 
 `pyyaml`, `requests`, `openai` and `anthropic` now come from the core. You can
 drop them from `pyproject.toml`. Add `known-first-party = ["sui_bench"]` for ruff.
