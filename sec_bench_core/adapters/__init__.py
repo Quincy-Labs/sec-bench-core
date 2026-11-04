@@ -32,6 +32,5 @@ def get_adapter(spec: str):
 
         return AnthropicAdapter(model)
     raise ValueError(
-        "unknown provider: "
-        f"{provider} (want omlx/local, lmstudio, ollama, openai, or anthropic)"
+        f"unknown provider: {provider} (want omlx/local, lmstudio, ollama, openai, or anthropic)"
     )

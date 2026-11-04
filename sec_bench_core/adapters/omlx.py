@@ -68,7 +68,11 @@ class OmlxAdapter:
         reasoning = msg.get("reasoning_content") or None
         usage = data.get("usage") or {}
         return Completion(
-            text, latency, usage.get("prompt_tokens"), usage.get("completion_tokens"), cost_usd=0.0,
+            text,
+            latency,
+            usage.get("prompt_tokens"),
+            usage.get("completion_tokens"),
+            cost_usd=0.0,
             reasoning=reasoning,
         )
 
