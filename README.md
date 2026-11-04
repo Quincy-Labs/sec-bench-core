@@ -99,11 +99,14 @@ A minimal chain, for example in `my_bench/chain.py`:
 from pathlib import Path
 from sec_bench_core.chain import TestResult
 
+
 class MyChain:
     name = "mychain"
     bug_classes = ["access-control", "arithmetic", "none"]
-    prompts = {t: {"system": "...", "answer_format": "## Answer format\n\n..."}
-               for t in ("detect", "patch", "exploit")}
+    prompts = {
+        t: {"system": "...", "answer_format": "## Answer format\n\n..."}
+        for t in ("detect", "patch", "exploit")
+    }
     exploit_filename = "model_exploit_test.rs"
     leak_terms = []
     test_glob = "*.rs"
@@ -111,10 +114,13 @@ class MyChain:
 
     def read_sources(self, pkg): ...
     def model_visible_files(self, case_path): ...
-    def is_allowed_patch_path(self, rel): return rel.startswith("src/")
+    def is_allowed_patch_path(self, rel):
+        return rel.startswith("src/")
+
     def run_tests(self, pkg, test_dirs, extra_files=None, timeout=300) -> TestResult: ...
     def split_location(self, loc): ...
-    def toolchain_warning(self, meta): return None
+    def toolchain_warning(self, meta):
+        return None
 ```
 
 `tests/fake_chain.py` is a complete working example that needs no toolchain.
