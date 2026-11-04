@@ -17,6 +17,23 @@ from typing import Protocol, runtime_checkable
 
 TASKS = ("detect", "patch", "exploit")
 
+# Every member of the Chain protocol, checked when bench.toml loads a chain.
+CHAIN_MEMBERS = (
+    "name",
+    "bug_classes",
+    "prompts",
+    "exploit_filename",
+    "leak_terms",
+    "test_glob",
+    "extra_required_meta",
+    "read_sources",
+    "model_visible_files",
+    "is_allowed_patch_path",
+    "run_tests",
+    "split_location",
+    "toolchain_warning",
+)
+
 
 @dataclass
 class TestResult:
