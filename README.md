@@ -9,7 +9,9 @@ with its cases and one `Chain` class; this package holds everything else:
 - **JSON parsing and repair** of model output (code fences, prose, truncation)
 - **Grading** for three tasks:
   - **detect**: *strict* = right bug class and right (module, function);
-    *lenient* = right class and right module. Clean cases score on the `found` flag.
+    *lenient* = right class and right module; *located* = right (module, function),
+    whatever the class. The right class is `bug_class`, or one of `bug_class_also`
+    (alternatives a reviewer accepted). Clean cases score on the `found` flag.
   - **patch**: the model's files must pass the path check (never test folders); the
     patched package must build, pass the functional tests and fail the reference exploit.
   - **exploit**: the model's test must pass on `vulnerable/` and fail on `fixed/`.
@@ -17,6 +19,8 @@ with its cases and one `Chain` class; this package holds everything else:
 - **Leak check**: model-visible files must not mention the bug class, generic
   remediation words, the chain's `leak_terms` or the case's `leak_terms`
 - **Case validation** (`check-case`) and loading from `meta.yaml`
+- **Class guide** for detect prompts (`sec_bench_core.classes`): one shared labeling
+  principle plus the chain's class definitions, so labels mean the same on every chain
 - **Leaderboard** tables from graded results files
 - The **`sec-bench` CLI**
 
@@ -25,7 +29,7 @@ The core never builds code or runs tests itself; it always asks the Chain.
 ## Install
 
 ```sh
-uv add "sec-bench-core @ git+https://github.com/Quincy-Labs/sec-bench-core@v0.1.0"   # or: uv add --editable ../sec-bench-core
+uv add "sec-bench-core @ git+https://github.com/Quincy-Labs/sec-bench-core@v0.2.0"   # or: uv add --editable ../sec-bench-core
 ```
 
 Python 3.11+.
@@ -141,6 +145,28 @@ A run writes one JSON file:
 incident/audit/clean splits, the false-positive rate and per-case results.
 `run --resume` and `grade` refuse a file whose `chain` differs from the
 loaded chain. Files written before the core existed (no `chain`) are accepted.
+
+## Detect labels
+
+Strict detect needs the model's bug class to match the case author's. When a bug
+fits two classes, that turns into label agreement rather than detection: in the
+sui-sec-bench pilot, models named the right function in 21 of 23 SSB-0003
+samples, but strict scored 2 of 23, almost all on the label. Three tools:
+
+- **`located`** (always reported): the function alone. Read it next to strict.
+  It does not check the explanation.
+- **Class guide**: render the chain's class definitions in the detect answer
+  format with `class_guide(DEFINITIONS)`. Every chain shares `LABEL_PRINCIPLE`
+  ("label the cause, not the consequence"); write tie-breaks into the
+  definitions ("... even if the result is that someone gains control").
+- **`bug_class_also`** in `meta.yaml`: other classes accepted for this case. Use
+  only where a reviewer agrees the second label is defensible.
+
+## Versioning
+
+Results record `core_version`. Bump the **minor** version (0.x.0) for any
+change that can change a grade or a summary number, and the **patch** version
+for everything else. Chain repos pin a tag. See CHANGELOG.md.
 
 ## Development
 
