@@ -34,5 +34,8 @@ def test_build_from_graded_files(chain, case, cases_root, tmp_path):
     r = data["rows"][0]
     assert r["strict"]["best_at_k"] == 1.0 and r["strict"]["mean"] == 0.5 and r["at_token_limit"] == 1
     md = (tmp_path / "lb" / "README.md").read_text()
-    assert "## detect" in md and "| fake:m | single-shot | 1 | 2 | 100% | 50% |" in md
+    assert (
+        "## detect" in md and "| fake:m | single-shot | 1 | 2 | 100% | 50% | 100% | 50% | 100% | 50% |" in md
+    )
+    assert "Located best@k" in md and r["located"]["mean"] == 0.5
     assert json.loads((tmp_path / "lb" / "leaderboard.json").read_text())["chains"] == ["fake"]

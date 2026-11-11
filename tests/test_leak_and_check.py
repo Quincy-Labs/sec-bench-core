@@ -51,3 +51,13 @@ def test_check_case_withheld_exploit_is_skipped(chain, cases_root, capsys):
     c = load_case(make_case(cases_root, with_exploit_test=False))
     assert check_case(chain, c) == []
     assert "[SKIP] no exploit test" in capsys.readouterr().out
+
+
+def test_check_case_validates_bug_class_also(chain, cases_root):
+    path = make_case(cases_root)
+    meta = yaml.safe_load((path / "meta.yaml").read_text())
+    meta["bug_class_also"] = ["arithmetic", "none", "access-control", "made-up"]
+    (path / "meta.yaml").write_text(yaml.safe_dump(meta))
+    errors = check_case(chain, load_case(path))
+    bad = [e for e in errors if e.startswith("bug_class_also")]
+    assert [e.split("'")[1] for e in bad] == ["none", "access-control", "made-up"]

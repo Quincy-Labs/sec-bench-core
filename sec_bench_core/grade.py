@@ -1,9 +1,11 @@
 """Grade a results file.
 
 Grading rules:
-- detect: strict = exact bug class and exact (module, function), as parsed by
+- detect: strict = right bug class and exact (module, function), as parsed by
   chain.split_location. lenient = right class and right module (any function).
-  Clean cases are graded on the found flag.
+  located = exact (module, function), whatever the class. The right class is
+  meta bug_class, or one of meta bug_class_also (reviewed alternatives).
+  Clean cases are graded on the found flag (located = no false positive).
 - patch: every model path must pass the core's path check and
   chain.is_allowed_patch_path (so never test folders); the patched package must
   build, pass the functional tests, and fail the reference exploit test.
@@ -30,17 +32,28 @@ def grade_detect(chain: Chain, case: Case, raw: str, sample: dict) -> dict:
     meta = case.meta
     out, why = parse_json(raw)
     if out is None:
-        return {"correct": False, "lenient": False, "reason": why, "raw_tail": raw[-300:] if raw else ""}
+        return {
+            "correct": False,
+            "lenient": False,
+            "located": False,
+            "reason": why,
+            "raw_tail": raw[-300:] if raw else "",
+        }
     found = bool(out.get("found", True))
     if meta["source"] == "clean":
         fp = found
         return {
             "correct": not fp,
             "lenient": not fp,
+            "located": not fp,
             "false_positive": fp,
             "class_claimed": out.get("bug_class"),
         }
-    class_ok = out.get("bug_class") == meta["bug_class"]
+    claimed_class = out.get("bug_class")
+    class_exact = claimed_class == meta["bug_class"]
+    class_ok = class_exact or (
+        claimed_class is not None and claimed_class in (meta.get("bug_class_also") or [])
+    )
     claimed = chain.split_location(str(out.get("location", "") or ""))
     expected = chain.split_location(str(meta["bug_location"] or ""))
     location_matches = claimed == expected
@@ -49,7 +62,9 @@ def grade_detect(chain: Chain, case: Case, raw: str, sample: dict) -> dict:
     return {
         "correct": strict,
         "lenient": lenient,
+        "located": location_matches,
         "class_ok": class_ok,
+        "class_exact": class_exact,
         "location_ok": location_matches,
         "found": found,
     }
@@ -160,10 +175,14 @@ def summarize(run: dict, cases_by_id: dict[str, Case]) -> dict:
         "samples_total": len(run["outputs"]),
         "strict": agg("correct", None),
         "lenient": agg(len_key, None),
+        **({"located": agg("located", None)} if is_detect else {}),
         "splits": {
-            "incident": {"strict": agg("correct", "incident"), "lenient": agg(len_key, "incident")},
-            "audit": {"strict": agg("correct", "audit"), "lenient": agg(len_key, "audit")},
-            "clean": {"strict": agg("correct", "clean"), "lenient": agg(len_key, "clean")},
+            src_name: {
+                "strict": agg("correct", src_name),
+                "lenient": agg(len_key, src_name),
+                **({"located": agg("located", src_name)} if is_detect else {}),
+            }
+            for src_name in ("incident", "audit", "clean")
         },
         "false_positive_rate": sum(fp_vals) / len(fp_vals) if fp_vals else None,
         "per_case": {
@@ -172,6 +191,7 @@ def summarize(run: dict, cases_by_id: dict[str, Case]) -> dict:
                 "n_samples": len(gs),
                 "correct_any": any(g.get("correct", False) for g in gs),
                 "lenient_any": any(g.get("lenient", g.get("correct", False)) for g in gs),
+                **({"located_any": any(g.get("located", False) for g in gs)} if is_detect else {}),
             }
             for c, gs in sorted(grades_by_case.items())
         },

@@ -75,6 +75,7 @@ def row(path: Path, run: dict, root: Path) -> dict:
         "samples": s["samples_total"],
         "strict": s["strict"],
         "lenient": s["lenient"],
+        "located": s.get("located"),
         "splits": {k: v["strict"] for k, v in s["splits"].items()},
         "false_positive_rate": s.get("false_positive_rate"),
         "avg_completion_tokens": avg_tokens(run),
@@ -95,7 +96,7 @@ def build(results_dir: Path, out_dir: Path, recursive: bool = False) -> dict:
         task_rows = [r for r in rows if r["task"] == task]
         headers = ["Model", "Mode", "Cases", "Samples", "Strict best@k", "Strict mean"]
         if task == "detect":
-            headers += ["Lenient best@k", "Lenient mean"]
+            headers += ["Lenient best@k", "Lenient mean", "Located best@k", "Located mean"]
         headers += ["Incident", "Audit", "Clean"]
         if task == "detect":
             headers += ["FP rate"]
@@ -111,7 +112,9 @@ def build(results_dir: Path, out_dir: Path, recursive: bool = False) -> dict:
                 _pct(r["strict"]["mean"]),
             ]
             if task == "detect":
+                loc = r["located"] or {}
                 cells += [_pct(r["lenient"]["best_at_k"]), _pct(r["lenient"]["mean"])]
+                cells += [_pct(loc.get("best_at_k")), _pct(loc.get("mean"))]
             cells += [_pct(r["splits"][k]["best_at_k"]) for k in ("incident", "audit", "clean")]
             if task == "detect":
                 cells += [_pct(r["false_positive_rate"])]

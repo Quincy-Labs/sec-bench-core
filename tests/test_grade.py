@@ -17,7 +17,15 @@ def detect(chain, case, **answer):
 
 def test_detect_strict_exact_match(chain, case):
     g = detect(chain, case, found=True, bug_class="access-control", location="vault::withdraw")
-    assert g == {"correct": True, "lenient": True, "class_ok": True, "location_ok": True, "found": True}
+    assert g == {
+        "correct": True,
+        "lenient": True,
+        "located": True,
+        "class_ok": True,
+        "class_exact": True,
+        "location_ok": True,
+        "found": True,
+    }
 
 
 def test_detect_strict_fully_qualified_location(chain, case):
@@ -189,3 +197,53 @@ def test_grade_file_refuses_other_chain(chain, cases_root, tmp_path):
     f.write_text(json.dumps({"task": "detect", "model": "m", "chain": "other", "outputs": []}))
     with pytest.raises(ValueError, match="chain"):
         grade_file(chain, f, cases_root)
+
+
+# --- located and bug_class_also (0.2.0) --------------------------------------
+
+
+def test_located_ignores_class(chain, case):
+    g = detect(chain, case, found=True, bug_class="arithmetic", location="vault::withdraw")
+    assert g["located"] is True and g["correct"] is False
+
+
+def test_located_false_for_wrong_function_and_unparseable(chain, case):
+    assert (
+        detect(chain, case, found=True, bug_class="access-control", location="vault::deposit")["located"]
+        is False
+    )
+    assert grade_detect(chain, case, "??", {})["located"] is False
+
+
+def test_clean_case_located_means_no_false_positive(chain, clean_case):
+    assert detect(chain, clean_case, found=False, bug_class="none")["located"] is True
+    assert detect(chain, clean_case, found=True, bug_class="arithmetic", location="a::b")["located"] is False
+
+
+def test_bug_class_also_accepts_reviewed_alternative(chain, case):
+    case.meta["bug_class_also"] = ["arithmetic"]
+    g = detect(chain, case, found=True, bug_class="arithmetic", location="vault::withdraw")
+    assert g["correct"] is True and g["class_ok"] is True and g["class_exact"] is False
+    g = detect(chain, case, found=True, bug_class="none", location="vault::withdraw")
+    assert g["correct"] is False
+
+
+def test_bug_class_also_unhashable_claim(chain, case):
+    case.meta["bug_class_also"] = ["arithmetic"]
+    g = detect(chain, case, found=True, bug_class=["arithmetic"], location="vault::withdraw")
+    assert g["correct"] is False
+
+
+def test_summary_has_located_for_detect_only(chain, case, cases_root, tmp_path):
+    raw = json.dumps({"found": True, "bug_class": "arithmetic", "location": "vault::withdraw"})
+    run = {"task": "detect", "model": "m", "outputs": [{"case": case.id, "sample": 0, "raw": raw}]}
+    f = tmp_path / "r.json"
+    f.write_text(json.dumps(run))
+    s = grade_file(chain, f, cases_root)["summary"]
+    assert s["strict"]["mean"] == 0.0 and s["located"]["mean"] == 1.0
+    assert s["splits"]["audit"]["located"]["best_at_k"] == 1.0
+    assert s["per_case"][case.id]["located_any"] is True
+    run = {"task": "exploit", "model": "m", "outputs": [{"case": case.id, "sample": 0, "raw": "{}"}]}
+    f.write_text(json.dumps(run))
+    s = grade_file(chain, f, cases_root)["summary"]
+    assert "located" not in s and "located" not in s["splits"]["audit"]

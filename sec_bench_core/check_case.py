@@ -59,6 +59,15 @@ def check_case(chain: Chain, case: Case) -> list[str]:
         errors.append("bug_class none requires source clean")
     if meta.get("bug_class") and meta["bug_class"] not in chain.bug_classes:
         errors.append(f"bug_class {meta['bug_class']!r} is not one of the chain's bug_classes")
+    also = meta.get("bug_class_also") or []
+    if not isinstance(also, list):
+        errors.append("bug_class_also must be a list")
+    else:
+        for c in also:
+            if c not in chain.bug_classes or c in ("none", meta.get("bug_class")):
+                errors.append(f"bug_class_also {c!r}: must be another of the chain's bug_classes, not none")
+        if also and meta.get("source") == "clean":
+            errors.append("clean case cannot have bug_class_also")
 
     func = case.path / "tests" / "functional"
     expl = case.path / "tests" / "exploit"
