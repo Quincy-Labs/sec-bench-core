@@ -247,3 +247,50 @@ def test_summary_has_located_for_detect_only(chain, case, cases_root, tmp_path):
     f.write_text(json.dumps(run))
     s = grade_file(chain, f, cases_root)["summary"]
     assert "located" not in s and "located" not in s["splits"]["audit"]
+
+
+# --- subject / pinpointed (0.3.0) ---------------------------------------------
+
+
+def test_pinpointed_needs_location_and_subject(chain, case):
+    case.meta["bug_subject"] = ["authority", "owner"]
+    good = dict(
+        found=True, bug_class="arithmetic", location="vault::withdraw", subject="ctx.accounts.authority"
+    )
+    g = detect(chain, case, **good)
+    assert g["pinpointed"] is True and g["subject_ok"] is True and g["correct"] is False
+    assert detect(chain, case, **{**good, "subject": "vault"})["pinpointed"] is False
+    assert detect(chain, case, **{**good, "subject": "authority, vault"})["pinpointed"] is False
+    assert detect(chain, case, **{**good, "location": "vault::deposit"})["pinpointed"] is False
+    no_subject = {k: v for k, v in good.items() if k != "subject"}
+    assert detect(chain, case, **no_subject)["pinpointed"] is False
+    assert grade_detect(chain, case, "??", {})["pinpointed"] is False
+
+
+def test_no_pinpointed_without_bug_subject(chain, case):
+    g = detect(chain, case, found=True, bug_class="access-control", location="vault::withdraw", subject="x")
+    assert "pinpointed" not in g and "subject_ok" not in g
+
+
+def test_summary_pinpointed_counts_only_cases_with_subject(chain, cases_root, tmp_path):
+    with_subject = load_case(make_case(cases_root, "FAKE-0010"))
+    without = load_case(make_case(cases_root, "FAKE-0011"))
+    meta_path = with_subject.path / "meta.yaml"
+    meta_path.write_text(meta_path.read_text() + "bug_subject: [authority]\n")
+    ans = json.dumps(
+        {"found": True, "bug_class": "access-control", "location": "vault::withdraw", "subject": "authority"}
+    )
+    run = {
+        "task": "detect",
+        "model": "m",
+        "outputs": [
+            {"case": with_subject.id, "sample": 0, "raw": ans},
+            {"case": without.id, "sample": 0, "raw": ans},
+        ],
+    }
+    f = tmp_path / "r.json"
+    f.write_text(json.dumps(run))
+    s = grade_file(chain, f, cases_root)["summary"]
+    assert s["pinpointed"] == {"cases": 1, "samples": 1, "best_at_k": 1.0, "mean": 1.0}
+    assert s["per_case"][with_subject.id]["pinpointed_any"] is True
+    assert "pinpointed_any" not in s["per_case"][without.id]

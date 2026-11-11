@@ -5,7 +5,11 @@ Grading rules:
   chain.split_location. lenient = right class and right module (any function).
   located = exact (module, function), whatever the class. The right class is
   meta bug_class, or one of meta bug_class_also (reviewed alternatives).
-  Clean cases are graded on the found flag (located = no false positive).
+  pinpointed = located and the answer's `subject` names the account, object,
+  argument or variable at fault (meta bug_subject, matched by
+  sec_bench_core.subject). Only cases with bug_subject (and clean cases) count
+  toward pinpointed.
+  Clean cases are graded on the found flag (located = pinpointed = no false positive).
 - patch: every model path must pass the core's path check and
   chain.is_allowed_patch_path (so never test folders); the patched package must
   build, pass the functional tests, and fail the reference exploit test.
@@ -26,6 +30,12 @@ from .cases import Case, load_cases
 from .chain import Chain
 from .jsonparse import parse_json
 from .patching import rejected_patch_paths, write_package_with_sources
+from .subject import subject_matches
+
+
+def has_subject(meta: dict) -> bool:
+    """True if the case counts toward pinpointed: it lists bug_subject, or it is clean."""
+    return meta.get("source") == "clean" or bool(meta.get("bug_subject"))
 
 
 def grade_detect(chain: Chain, case: Case, raw: str, sample: dict) -> dict:
@@ -36,6 +46,7 @@ def grade_detect(chain: Chain, case: Case, raw: str, sample: dict) -> dict:
             "correct": False,
             "lenient": False,
             "located": False,
+            **({"pinpointed": False} if has_subject(meta) else {}),
             "reason": why,
             "raw_tail": raw[-300:] if raw else "",
         }
@@ -46,6 +57,7 @@ def grade_detect(chain: Chain, case: Case, raw: str, sample: dict) -> dict:
             "correct": not fp,
             "lenient": not fp,
             "located": not fp,
+            "pinpointed": not fp,
             "false_positive": fp,
             "class_claimed": out.get("bug_class"),
         }
@@ -59,10 +71,15 @@ def grade_detect(chain: Chain, case: Case, raw: str, sample: dict) -> dict:
     location_matches = claimed == expected
     strict = class_ok and location_matches
     lenient = class_ok and claimed[0] == expected[0]
+    subject = {}
+    if has_subject(meta):
+        subject_ok = subject_matches(out.get("subject"), [str(n) for n in meta["bug_subject"]])
+        subject = {"pinpointed": location_matches and subject_ok, "subject_ok": subject_ok}
     return {
         "correct": strict,
         "lenient": lenient,
         "located": location_matches,
+        **subject,
         "class_ok": class_ok,
         "class_exact": class_exact,
         "location_ok": location_matches,
@@ -152,8 +169,14 @@ def summarize(run: dict, cases_by_id: dict[str, Case]) -> dict:
         case = cases_by_id.get(case_id)
         return case.meta.get("source") if case else None
 
+    def in_scope(key: str, case_id: str) -> bool:
+        if key != "pinpointed":
+            return True
+        case = cases_by_id.get(case_id)
+        return case is not None and has_subject(case.meta)
+
     def agg(key: str, source: str | None) -> dict:
-        sel = [c for c in grades_by_case if source is None or src(c) == source]
+        sel = [c for c in grades_by_case if (source is None or src(c) == source) and in_scope(key, c)]
         per_sample = [bool(g.get(key, False)) for c in sel for g in grades_by_case[c]]
         best = [any(bool(g.get(key, False)) for g in grades_by_case[c]) for c in sel]
         return {
@@ -175,12 +198,16 @@ def summarize(run: dict, cases_by_id: dict[str, Case]) -> dict:
         "samples_total": len(run["outputs"]),
         "strict": agg("correct", None),
         "lenient": agg(len_key, None),
-        **({"located": agg("located", None)} if is_detect else {}),
+        **({"located": agg("located", None), "pinpointed": agg("pinpointed", None)} if is_detect else {}),
         "splits": {
             src_name: {
                 "strict": agg("correct", src_name),
                 "lenient": agg(len_key, src_name),
-                **({"located": agg("located", src_name)} if is_detect else {}),
+                **(
+                    {"located": agg("located", src_name), "pinpointed": agg("pinpointed", src_name)}
+                    if is_detect
+                    else {}
+                ),
             }
             for src_name in ("incident", "audit", "clean")
         },
@@ -192,6 +219,11 @@ def summarize(run: dict, cases_by_id: dict[str, Case]) -> dict:
                 "correct_any": any(g.get("correct", False) for g in gs),
                 "lenient_any": any(g.get("lenient", g.get("correct", False)) for g in gs),
                 **({"located_any": any(g.get("located", False) for g in gs)} if is_detect else {}),
+                **(
+                    {"pinpointed_any": any(g.get("pinpointed", False) for g in gs)}
+                    if is_detect and in_scope("pinpointed", c)
+                    else {}
+                ),
             }
             for c, gs in sorted(grades_by_case.items())
         },

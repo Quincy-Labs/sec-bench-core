@@ -61,3 +61,15 @@ def test_check_case_validates_bug_class_also(chain, cases_root):
     errors = check_case(chain, load_case(path))
     bad = [e for e in errors if e.startswith("bug_class_also")]
     assert [e.split("'")[1] for e in bad] == ["none", "access-control", "made-up"]
+
+
+def test_check_case_validates_bug_subject(chain, cases_root):
+    path = make_case(cases_root)
+    meta = yaml.safe_load((path / "meta.yaml").read_text())
+    meta["bug_subject"] = ["withdraw", "not_in_sources", "two words"]
+    (path / "meta.yaml").write_text(yaml.safe_dump(meta))
+    errors = [e for e in check_case(chain, load_case(path)) if e.startswith("bug_subject")]
+    assert errors == [
+        "bug_subject 'not_in_sources' does not appear in the vulnerable sources",
+        "bug_subject 'two words': must be one plain identifier",
+    ]

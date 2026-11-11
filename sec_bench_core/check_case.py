@@ -13,11 +13,13 @@ Checks:
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from .cases import Case
 from .chain import Chain
 from .leak import scan_case
+from .subject import normalize_subject
 
 REQUIRED = [
     "id",
@@ -44,6 +46,27 @@ def has_exploit_test(chain: Chain, case: Case) -> bool:
     return bool(_tests_in(chain, case.path / "tests" / "exploit"))
 
 
+def _check_subject(chain: Chain, case: Case) -> list[str]:
+    """bug_subject: a list of names, each one an identifier the model can see in the sources."""
+    names = case.meta.get("bug_subject")
+    if names is None:
+        return []
+    if case.meta.get("source") == "clean":
+        return ["clean case cannot have bug_subject"]
+    if not isinstance(names, list) or not names:
+        return ["bug_subject must be a non-empty list of names"]
+    seen = {
+        t.lower() for t in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", chain.read_sources(case.path / "vulnerable"))
+    }
+    errors = []
+    for n in names:
+        if normalize_subject(str(n)) != str(n).lower():
+            errors.append(f"bug_subject {n!r}: must be one plain identifier")
+        elif str(n).lower() not in seen:
+            errors.append(f"bug_subject {n!r} does not appear in the vulnerable sources")
+    return errors
+
+
 def check_case(chain: Chain, case: Case) -> list[str]:
     errors: list[str] = []
     meta = case.meta
@@ -68,6 +91,7 @@ def check_case(chain: Chain, case: Case) -> list[str]:
                 errors.append(f"bug_class_also {c!r}: must be another of the chain's bug_classes, not none")
         if also and meta.get("source") == "clean":
             errors.append("clean case cannot have bug_class_also")
+    errors += _check_subject(chain, case)
 
     func = case.path / "tests" / "functional"
     expl = case.path / "tests" / "exploit"
