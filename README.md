@@ -10,7 +10,8 @@ with its cases and one `Chain` class; this package holds everything else:
 - **Grading** for three tasks:
   - **detect**: *strict* = right bug class and right (module, function);
     *lenient* = right class and right module; *located* = right (module, function),
-    whatever the class. The right class is `bug_class`, or one of `bug_class_also`
+    whatever the class; *pinpointed* = located and the right `subject` (the account,
+    object, argument or variable at fault). The right class is `bug_class`, or one of `bug_class_also`
     (alternatives a reviewer accepted). Clean cases score on the `found` flag.
   - **patch**: the model's files must pass the path check (never test folders); the
     patched package must build, pass the functional tests and fail the reference exploit.
@@ -29,7 +30,7 @@ The core never builds code or runs tests itself; it always asks the Chain.
 ## Install
 
 ```sh
-uv add "sec-bench-core @ git+https://github.com/Quincy-Labs/sec-bench-core@v0.2.0"   # or: uv add --editable ../sec-bench-core
+uv add "sec-bench-core @ git+https://github.com/Quincy-Labs/sec-bench-core@v0.3.0"   # or: uv add --editable ../sec-bench-core
 ```
 
 Python 3.11+.
@@ -161,6 +162,14 @@ samples, but strict scored 2 of 23, almost all on the label. Three tools:
   definitions ("... even if the result is that someone gains control").
 - **`bug_class_also`** in `meta.yaml`: other classes accepted for this case. Use
   only where a reviewer agrees the second label is defensible.
+- **`pinpointed`**: located, and the answer's `subject` names the thing whose
+  check is missing or wrong. A deterministic check on the explanation, not a
+  judge model, so it means the same on every chain and over time. A case opts in
+  with `bug_subject: [config]` (accepted names; `check-case` requires each to be
+  one identifier that appears in the vulnerable sources). The chain's detect
+  answer format must ask for the field, e.g. `"subject": "<the one account,
+  object, argument or variable whose check is missing or wrong>"`. Matching rules
+  are in `sec_bench_core/subject.py`; naming several things never matches.
 
 ## Versioning
 

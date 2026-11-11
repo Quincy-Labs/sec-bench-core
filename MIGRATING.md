@@ -17,7 +17,7 @@ Pin a tag, so every results file's `core_version` maps to exact grading code:
 ```sh
 cd sui-sec-bench-public
 git switch -c use-sec-bench-core
-uv add "sec-bench-core @ git+https://github.com/Quincy-Labs/sec-bench-core@v0.2.0"
+uv add "sec-bench-core @ git+https://github.com/Quincy-Labs/sec-bench-core@v0.3.0"
 ```
 
 To work on both repos at once, use `uv add --editable ../sec-bench-core` instead,
@@ -202,7 +202,7 @@ Then compare each `outputs[i].grade` and `summary` in `/tmp/regrade` with the
 original file. Ignore what is new: `summary.core_version`/`summary.chain`, the
 `incomplete` key (the current `grade.py` also adds it), and since core 0.2.0
 `located` and `class_exact` in detect grades plus `located` and `located_any` in
-summaries. No Sui case sets `bug_class_also` yet, so every other detect and
+summaries (and since 0.3.0 `pinpointed`, which needs `bug_subject` in a case). No Sui case sets `bug_class_also` yet, so every other detect and
 exploit field should match exactly. Patch grades will **not** match in this repo: the
 exploit tests are withheld, so patches grade as `incomplete`. Compare patch
 grades only in a working copy that has the exploit tests. These checks were

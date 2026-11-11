@@ -2,6 +2,16 @@
 
 Minor versions can change grades or summary numbers; patch versions cannot.
 
+## 0.3.0 (2026-11-10)
+
+- detect grades gain `pinpointed` and `subject_ok` for cases with `bug_subject`
+  (and `pinpointed` for clean cases): right function and the answer's `subject`
+  names the account, object, argument or variable at fault. Summaries, splits,
+  per-case results and the leaderboard report it over those cases only.
+- `sec_bench_core.subject`: deterministic subject matching (one identifier after
+  normalizing paths, method calls and filler words).
+- `check-case` validates `bug_subject`.
+
 ## 0.2.0 (2026-11-10)
 
 - detect grades gain `located` (right module and function, whatever the class)
